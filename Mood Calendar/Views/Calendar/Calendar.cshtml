@@ -1,0 +1,180 @@
+@model Mood_Calendar.Models.CalendarViewModel
+
+@{
+    ViewBag.Title = "Mood Calendar";
+    Layout = "_Layout";
+}
+
+<div class="row">
+    @for (int i = 0; i < Model.MonthNames.Count; i++)
+    {
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title">@Model.MonthNames[i] @Model.Year</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Sun</th>
+                                <th>Mon</th>
+                                <th>Tue</th>
+                                <th>Wed</th>
+                                <th>Thu</th>
+                                <th>Fri</th>
+                                <th>Sat</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @{
+                                var daysInMonth = DateTime.DaysInMonth(Model.Year, i + 1);
+                                var firstDay = new DateTime(Model.Year, i + 1, 1);
+                                var startingBlank = (int)firstDay.DayOfWeek;
+                                var date = 1;
+
+                                <tr>
+                                    @for (int j = 0; j < startingBlank; j++)
+                                    {
+                                        <td>&nbsp;</td>
+                                    }
+
+                                    @for (int j = startingBlank; j < 7; j++)
+                                    {
+                                        var currentDate = new DateTime(Model.Year, i + 1, date);
+                                        var eventColor = Model.MonthEvents[i].FirstOrDefault(e => e.Date == currentDate)?.Color;
+                                        <td class="day-cell" data-date="@currentDate.ToString("MM/dd/yyyy")" style="background-color: @(eventColor ?? "");">@date</td>
+                                        date++;
+                                    }
+                                </tr>
+
+                                for (int j = 7 - startingBlank; j < daysInMonth; j += 7)
+                                {
+                                    <tr>
+                                        @for (int k = 0; k < 7 && (j + k) < daysInMonth; k++)
+                                        {
+                                            var currentDate = new DateTime(Model.Year, i + 1, j + k + 1);
+                                            var eventColor = Model.MonthEvents[i].FirstOrDefault(e => e.Date == currentDate)?.Color;
+                                            <td class="day-cell" data-date="@currentDate.ToString("MM/dd/yyyy")" style="background-color: @(eventColor ?? "");">@(j + k + 1)</td>
+                                        }
+                                        @for (int k = 6; k >= 0 && (j + k) >= daysInMonth; k--)
+                                        {
+                                            <td>&nbsp;</td>
+                                        }
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        if ((i + 1) % 3 == 0)
+        {
+            @:</div><div class="row">
+        }
+    }
+</div>
+
+<div class="color-menu" style="display: none;">
+    <div class="color-option" data-color="green">Great</div>
+    <div class="color-option" data-color="yellow">Good</div>
+    <div class="color-option" data-color="gray">Neutral</div>
+    <div class="color-option" data-color="orange">Not Great</div>
+    <div class="color-option" data-color="red">Bad</div>
+</div>
+
+@section Scripts {
+    <script>
+        let selectedCell = null;
+
+        const dayCells = document.querySelectorAll('.day-cell');
+        const colorMenu = document.querySelector('.color-menu');
+
+        dayCells.forEach(cell => {
+            cell.addEventListener('click', () => {
+                if (selectedCell) {
+                    selectedCell.classList.remove('selected');
+                }
+                selectedCell = cell;
+                selectedCell.classList.add('selected');
+                showColorMenu(cell);
+            });
+        });
+
+        const colorOptions = document.querySelectorAll('.color-option');
+        colorOptions.forEach(option => {
+            option.addEventListener('click', () => {
+                if (selectedCell) {
+                    var date = new Date(selectedCell.dataset.date);
+                    var color = option.dataset.color;
+
+                    // Make an AJAX request to set the event color on the server
+                    var xhr = new XMLHttpRequest();
+                    xhr.open('POST', '/Calendar/SetEventColor', true);
+                    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+                    xhr.onreadystatechange = function () {
+                        if (xhr.readyState === XMLHttpRequest.DONE && xhr.status === 200) {
+                            // Update the cell color after the server response
+                            selectedCell.style.backgroundColor = color;
+                            colorMenu.style.display = 'none';
+                        }
+                    };
+                    xhr.send(`date=${date.toISOString()}&color=${color}`);
+                }
+            });
+        });
+
+        window.addEventListener('click', (event) => {
+            if (!event.target.matches('.day-cell') && !event.target.matches('.color-option')) {
+                colorMenu.style.display = 'none';
+            }
+        });
+
+        function showColorMenu(cell) {
+            const cellRect = cell.getBoundingClientRect();
+            const menuWidth = colorMenu.offsetWidth;
+            const menuHeight = colorMenu.offsetHeight;
+            const windowWidth = window.innerWidth;
+            const windowHeight = window.innerHeight;
+
+            let left = cellRect.left + window.pageXOffset;
+            let top = cellRect.top + window.pageYOffset + cellRect.height;
+
+            if (left + menuWidth > windowWidth) {
+                left = windowWidth - menuWidth;
+            }
+
+            if (top + menuHeight > windowHeight) {
+                top = windowHeight - menuHeight;
+            }
+
+            colorMenu.style.left = `${left}px`;
+            colorMenu.style.top = `${top}px`;
+            colorMenu.style.display = 'block';
+        }
+    </script>
+}
+
+<style>
+    .day-cell {
+        cursor: pointer;
+    }
+
+    .selected {
+        border: 2px solid #000;
+    }
+
+    .color-menu {
+        position: absolute;
+        background-color: #fff;
+        border: 1px solid #ccc;
+        padding: 5px;
+        z-index: 1;
+    }
+
+    .color-option {
+        cursor: pointer;
+        padding: 5px;
+    }
+</style>
